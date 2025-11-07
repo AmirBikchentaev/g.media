@@ -1,0 +1,115 @@
+# ——————————————————————
+# Node.js / npm / Yarn
+# ——————————————————————
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+yarn.lock
+.pnpm-debug.log*
+
+# ——————————————————————
+# Build outputs / compiled files
+# ——————————————————————
+dist/
+build/
+out/
+.cache/
+.next/
+.vercel/
+coverage/
+tmp/
+temp/
+
+# ——————————————————————
+# TypeScript
+# ——————————————————————
+*.tsbuildinfo
+
+# ——————————————————————
+# Environment files
+# ——————————————————————
+.env
+.env.*.local
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ——————————————————————
+# Logs / runtime files
+# ——————————————————————
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+lerna-debug.log*
+pm2.log
+.pids
+*.pid
+*.seed
+*.pid.lock
+
+# ——————————————————————
+# IDE / OS files
+# ——————————————————————
+.vscode/
+.idea/
+*.swp
+*.swo
+*.DS_Store
+Thumbs.db
+
+# ——————————————————————
+# Test / Coverage tools
+# ——————————————————————
+coverage/
+.nyc_output/
+jest-cache/
+jest-test-results.json
+
+# ——————————————————————
+# Optional: lock & cache tools
+# ——————————————————————
+.eslintcache
+.prettiercache
+.cache/
+.stylelintcache
+.sass-cache/
+.parcel-cache/
+
+# ——————————————————————
+# Local data / secrets / misc
+# ——————————————————————
+*.local
+*.secret
+*.key
+*.pem
+*.crt
+
+# ——————————————————————
+# Misc project-specific
+# ——————————————————————
+*.sqlite
+*.sqlite3
+*.db
+*.tgz
+*.bak
+*.old
+*.orig
+.DS_Store
+*.orig.*
+
+# ——————————————————————
+# OS / editor backup files
+# ——————————————————————
+*~
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*.swn
+*.swo
