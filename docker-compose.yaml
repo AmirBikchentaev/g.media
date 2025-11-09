@@ -1,10 +1,8 @@
 version: "3.9"
 
 services:
-  # --- MongoDB ---
   mongo:
     image: mongo:7
-    container_name: tasks-mongo
     restart: unless-stopped
     ports:
       - "27017:27017"
@@ -16,10 +14,8 @@ services:
       - mongo_data:/data/db
       - ./docker/mongo-init.js:/docker-entrypoint-initdb.d/01-init-user.js:ro
 
-  # --- Mongo Express UI ---
   mongo-express:
     image: mongo-express:1
-    container_name: tasks-mongo-express
     restart: unless-stopped
     ports:
       - "8081:8081"
@@ -31,10 +27,8 @@ services:
     depends_on:
       - mongo
 
-  # --- RabbitMQ + Management UI ---
   rabbit:
     image: rabbitmq:3-management
-    container_name: tasks-rabbit
     restart: unless-stopped
     ports:
       - "5672:5672"     # AMQP
@@ -43,10 +37,9 @@ services:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
 
-  # --- Backend (Fastify + GraphQL + REST) ---
   backend:
     build: .
-    container_name: tasks-backend
+    command: node dist/index.js
     restart: unless-stopped
     depends_on:
       - mongo
@@ -55,28 +48,23 @@ services:
       - "3000:3000"
     environment:
       PORT: 3000
-      MONGODB_URI: mongodb://familygames1985_db_user:OWYLnUOtW2q7XZTR@mongo:27017/tasksdb?authSource=tasksdb
+      MONGODB_URI: mongodb://root:rootpass@mongo:27017/tasksdb?authSource=admin
       RABBITMQ_URL: amqp://guest:guest@rabbit:5672
       RABBITMQ_EXCHANGE: task.exchange
       RABBITMQ_QUEUE: task.actions
       RABBITMQ_RK: task.action
-    command: ["node", "dist/index.js"]
 
-  # --- Worker (RabbitMQ consumer) ---
   worker:
     build: .
-    container_name: tasks-worker
+    command: node dist/worker/task-actions.consumer.js
     restart: unless-stopped
     depends_on:
       - rabbit
-      - mongo
     environment:
-      MONGODB_URI: mongodb://familygames1985_db_user:OWYLnUOtW2q7XZTR@mongo:27017/tasksdb?authSource=tasksdb
       RABBITMQ_URL: amqp://guest:guest@rabbit:5672
       RABBITMQ_EXCHANGE: task.exchange
       RABBITMQ_QUEUE: task.actions
       RABBITMQ_RK: task.action
-    command: ["node", "dist/worker/worker.js"]
 
 volumes:
   mongo_data:

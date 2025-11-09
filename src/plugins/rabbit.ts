@@ -1,3 +1,4 @@
+// src/plugins/rabbit.ts
 import { FastifyPluginAsync } from 'fastify';
 import amqp from 'amqplib';
 import type { Options } from 'amqplib';
@@ -9,17 +10,30 @@ interface MQ {
 }
 
 declare module 'fastify' {
-  interface FastifyInstance {
-    mq: MQ;
-  }
+  interface FastifyInstance { mq: MQ }
 }
 
 type RabbitPluginOpts = {
   url: string;
-  exchangeName?: string; // по умолчанию task.exchange
-  queueName?: string;    // по умолчанию task.actions
-  routingKey?: string;   // по умолчанию task.action
+  exchangeName?: string;
+  queueName?: string;
+  routingKey?: string;
 };
+
+async function connectAmqp(url: string, retries = 20, delayMs = 1500): Promise<amqp.Connection> {
+  let lastErr: any;
+  for (let i = 1; i <= retries; i++) {
+    try {
+      //@ts-ignore
+      return await amqp.connect(url);
+    } catch (e: any) {
+      lastErr = e;
+      // ECONNREFUSED / ETIMEDOUT — ждём и пробуем снова
+      await new Promise(r => setTimeout(r, delayMs));
+    }
+  }
+  throw lastErr;
+}
 
 export const rabbitPlugin: FastifyPluginAsync<RabbitPluginOpts> = async (app, opts) => {
   const url        = opts.url || process.env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5672';
@@ -27,26 +41,19 @@ export const rabbitPlugin: FastifyPluginAsync<RabbitPluginOpts> = async (app, op
   const queue      = opts.queueName    || process.env.RABBITMQ_QUEUE    || 'task.actions';
   const routingKey = opts.routingKey   || process.env.RABBITMQ_RK       || 'task.action';
 
+  app.log.info({ url }, '[rabbit] connecting...');
+  const conn = await connectAmqp(url);
   //@ts-ignore
-  const conn: amqp.Connection = await amqp.connect(url);
-  //@ts-ignore
-  const ch: amqp.Channel = await conn.createChannel();
+  const ch = await conn.createChannel();
 
   await ch.assertExchange(exchange, 'direct', { durable: true });
   await ch.assertQueue(queue, { durable: true });
-  
   await ch.bindQueue(queue, exchange, routingKey);
 
   async function publish(rk: string, payload: unknown, pubOpts?: Options.Publish) {
     const buf = Buffer.from(JSON.stringify(payload));
-    ch.publish(
-      exchange,
-      rk,
-      buf,
-      { contentType: 'application/json', persistent: true, ...pubOpts }
-    );
+    ch.publish(exchange, rk, buf, { contentType: 'application/json', persistent: true, ...pubOpts });
     app.log.info({ rk }, '[rabbit] published');
-    return Promise.resolve();
   }
 
   app.decorate<MQ>('mq', { connection: conn, channel: ch, publish });
@@ -56,4 +63,6 @@ export const rabbitPlugin: FastifyPluginAsync<RabbitPluginOpts> = async (app, op
     //@ts-ignore
     try { await conn.close(); } catch {}
   });
+
+  app.log.info('[rabbit] ready');
 };
