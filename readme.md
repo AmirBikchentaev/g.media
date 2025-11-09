@@ -18,6 +18,23 @@ It implements a **modular, type-safe Task Management microservice** that exposes
 - **Postman** — API and integration testing
 
 ---
+## 🚀 How to Run
+
+```bash
+npm install
+docker compose up --build
+```
+
+
+## 🛠️ Development Plan
+
+- Created a TypeScript environment and installed all required dependencies.  
+- Set up `docker-compose` with **MongoDB** and **RabbitMQ** services.  
+- Implemented REST endpoints and manually tested them via Postman.  
+- Added GraphQL endpoints and created additional Postman tests.  
+- Integrated **RabbitMQ** for publishing and consuming task events.
+
+
 
 ## ⚙️ Features Summary
 
