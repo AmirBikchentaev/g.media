@@ -8,5 +8,4 @@ export interface Task {
   status: TaskStatus;
 }
 
-// очень простой ин-мемори стор
 export const tasks = new Map<string, Task>();

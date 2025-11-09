@@ -1,21 +1,82 @@
-version: '3.9'
+version: "3.9"
+
 services:
+  # --- MongoDB ---
   mongo:
     image: mongo:7
-    restart: unless-stopped
-    ports: [ "27017:27017" ]
-    volumes:
-      - mongo_data:/data/db
-
-  rabbit:
-    image: rabbitmq:3-management
+    container_name: tasks-mongo
     restart: unless-stopped
     ports:
-      - "5672:5672"    # AMQP
-      - "15672:15672"  # Management UI http://localhost:15672 (guest/guest)
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: rootpass
+      MONGO_INITDB_DATABASE: tasksdb
+    volumes:
+      - mongo_data:/data/db
+      - ./docker/mongo-init.js:/docker-entrypoint-initdb.d/01-init-user.js:ro
+
+  # --- Mongo Express UI ---
+  mongo-express:
+    image: mongo-express:1
+    container_name: tasks-mongo-express
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_SERVER: mongo
+      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      ME_CONFIG_MONGODB_ADMINPASSWORD: rootpass
+      ME_CONFIG_BASICAUTH: "false"
+    depends_on:
+      - mongo
+
+  # --- RabbitMQ + Management UI ---
+  rabbit:
+    image: rabbitmq:3-management
+    container_name: tasks-rabbit
+    restart: unless-stopped
+    ports:
+      - "5672:5672"     # AMQP
+      - "15672:15672"   # UI http://localhost:15672 (guest/guest)
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
+
+  # --- Backend (Fastify + GraphQL + REST) ---
+  backend:
+    build: .
+    container_name: tasks-backend
+    restart: unless-stopped
+    depends_on:
+      - mongo
+      - rabbit
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      MONGODB_URI: mongodb://familygames1985_db_user:OWYLnUOtW2q7XZTR@mongo:27017/tasksdb?authSource=tasksdb
+      RABBITMQ_URL: amqp://guest:guest@rabbit:5672
+      RABBITMQ_EXCHANGE: task.exchange
+      RABBITMQ_QUEUE: task.actions
+      RABBITMQ_RK: task.action
+    command: ["node", "dist/index.js"]
+
+  # --- Worker (RabbitMQ consumer) ---
+  worker:
+    build: .
+    container_name: tasks-worker
+    restart: unless-stopped
+    depends_on:
+      - rabbit
+      - mongo
+    environment:
+      MONGODB_URI: mongodb://familygames1985_db_user:OWYLnUOtW2q7XZTR@mongo:27017/tasksdb?authSource=tasksdb
+      RABBITMQ_URL: amqp://guest:guest@rabbit:5672
+      RABBITMQ_EXCHANGE: task.exchange
+      RABBITMQ_QUEUE: task.actions
+      RABBITMQ_RK: task.action
+    command: ["node", "dist/worker/worker.js"]
 
 volumes:
   mongo_data:

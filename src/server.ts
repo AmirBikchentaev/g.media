@@ -24,6 +24,7 @@ export function buildServer() {
   // ⬇️ RabbitMQ
   app.register(rabbitPlugin, {
     url: process.env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5672',
+    //@ts-ignore
     exchange: process.env.RABBITMQ_EXCHANGE || 'tasks',
   });
 
