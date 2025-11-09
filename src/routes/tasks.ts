@@ -33,52 +33,84 @@ const UpdateTaskBody = z.object({
 export default async function tasksRoute(app: FastifyInstance) {
   app.withTypeProvider<ZodTypeProvider>();
 
-  app.get('/tasks/:id', {
-    schema: {
-      params: z.object({ id: ObjectIdLike }),
-      response: { 200: TaskDTO },
+  app.get(
+    '/tasks/:id',
+    {
+      schema: {
+        params: z.object({ id: ObjectIdLike }),
+        response: { 200: TaskDTO },
+      },
     },
-  }, async (req, reply) => {
-    const { id } = req.params as { id: string };
-    const task = await getTaskById(id);
-    if (!task) return reply.notFound('Task not found');
-    return task;
-  });
+    async (req, reply) => {
+      const { id } = req.params as { id: string };
+      const task = await getTaskById(id);
+      if (!task) return reply.notFound('Task not found');
+      return task;
+    }
+  );
 
-  app.get('/tasks', {
-    schema: {
-      querystring: z.object({ status: StatusEnum.optional() }),
-      response: { 200: z.array(TaskDTO) },
+  app.get(
+    '/tasks',
+    {
+      schema: {
+        querystring: z.object({ status: StatusEnum.optional() }),
+        response: { 200: z.array(TaskDTO) },
+      },
     },
-  }, async (req) => {
-    const { status } = req.query as { status?: TaskStatus };
-    return listTasks(status);
-  });
+    async (req) => {
+      const { status } = req.query as { status?: TaskStatus };
+      return listTasks(status);
+    }
+  );
 
-  app.post('/tasks', {
-    schema: { body: CreateTaskBody, response: { 201: TaskDTO } },
-  }, async (req, reply) => {
-    const body = req.body as z.infer<typeof CreateTaskBody>;
-    const task = await createTask({
-      title: body.title,
-      description: body.description,
-      dueDate: body.dueDate,
-      status: body.status,
-    });
-    reply.code(201);
-    return task;
-  });
-
-  app.patch('/tasks/:id', {
-    schema: {
-      params: z.object({ id: ObjectIdLike }),
-      body: UpdateTaskBody,
-      response: { 200: TaskDTO },
+  app.post(
+    '/tasks',
+    {
+      schema: { body: CreateTaskBody, response: { 201: TaskDTO } },
     },
-  }, async (req, reply) => {
-    const { id } = req.params as { id: string };
-    const task = await updateTask(id, req.body as any);
-    if (!task) return reply.notFound('Task not found');
-    return task;
-  });
+    async (req, reply) => {
+      const body = req.body as z.infer<typeof CreateTaskBody>;
+      const task = await createTask({
+        title: body.title,
+        description: body.description,
+        dueDate: body.dueDate,
+        status: body.status,
+      });
+
+      // Publish "created"
+      await app.mq.publish('task.action', {
+        taskId: task.id,
+        action: 'created' as const,
+        timestamp: new Date().toISOString(),
+      });
+
+      reply.code(201);
+      return task;
+    }
+  );
+
+  app.patch(
+    '/tasks/:id',
+    {
+      schema: {
+        params: z.object({ id: ObjectIdLike }),
+        body: UpdateTaskBody,
+        response: { 200: TaskDTO },
+      },
+    },
+    async (req, reply) => {
+      const { id } = req.params as { id: string };
+      const task = await updateTask(id, req.body as any);
+      if (!task) return reply.notFound('Task not found');
+
+      // Publish "updated"
+      await app.mq.publish('task.action', {
+        taskId: task.id,
+        action: 'updated' as const,
+        timestamp: new Date().toISOString(),
+      });
+
+      return task;
+    }
+  );
 }
