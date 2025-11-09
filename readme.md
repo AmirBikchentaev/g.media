@@ -52,6 +52,6 @@ It implements a **modular, type-safe Task Management microservice** that exposes
 ```json
 {
   "taskId": "<string>",
-  "action": "created" | "updated",
+  "action": "created"  "updated",
   "timestamp": "<ISO date>"
 }
