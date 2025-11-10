@@ -18,28 +18,27 @@ import fjs from 'fast-json-stringify';
 export function buildServer() {
   const app = Fastify({ logger: true }).withTypeProvider<ZodTypeProvider>();
 
-  // --- Mixed compilers: Zod OR JSON Schema ---
+  // mixed compilers
   const ajv = new Ajv({ coerceTypes: true, removeAdditional: 'all' });
   addFormats(ajv);
-
   app.setValidatorCompiler((req) => {
     const schema: any = req.schema;
-    const isZod = schema && (typeof (schema as any).safeParse === 'function' || (schema as any)._def);
+    // @ts-ignore
+    const isZod = schema && (typeof schema.safeParse === 'function' || schema?._def);
     // @ts-ignore
     return isZod ? zodValidator(req) : ajv.compile(schema);
   });
-
   app.setSerializerCompiler((req) => {
     const schema: any = req.schema;
-    const isZod = schema && (typeof (schema as any).safeParse === 'function' || (schema as any)._def);
+    // @ts-ignore
+    const isZod = schema && (typeof schema.safeParse === 'function' || schema?._def);
     // @ts-ignore
     return isZod ? zodSerializer(req) : fjs(schema);
   });
-  // --- end Mixed compilers ---
 
   app.register(sensible);
 
-  // RabbitMQ plugin (Direct exchange + queue + binding)
+  // 1) СНАЧАЛА — RabbitMQ (и лучше с await в index.ts через app.ready())
   app.register(rabbitPlugin, {
     url: process.env.RABBITMQ_URL || 'amqp://guest:guest@rabbit:5672',
     exchangeName: process.env.RABBITMQ_EXCHANGE || 'task.exchange',
@@ -47,17 +46,17 @@ export function buildServer() {
     routingKey: process.env.RABBITMQ_RK || 'task.action',
   });
 
-  // GraphQL (пробрасываем mq в контекст)
+  // 2) GraphQL — контекст забирает app.mq (после регистрации плагина)
   //@ts-ignore
   app.register(mercurius, {
     schema: typeDefs,
     resolvers,
     graphiql: true,
     path: '/graphql',
-    context: () => ({ mq: app.mq }),
+    context: () => ({ mq: app.mq }), // будет доступно после инициализации плагина
   });
 
-  // REST
+  // 3) REST
   app.register(tasksRoute, { prefix: '/api' });
 
   return app;

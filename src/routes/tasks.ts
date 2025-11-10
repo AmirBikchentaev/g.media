@@ -63,54 +63,53 @@ export default async function tasksRoute(app: FastifyInstance) {
     }
   );
 
-  app.post(
-    '/tasks',
-    {
-      schema: { body: CreateTaskBody, response: { 201: TaskDTO } },
-    },
-    async (req, reply) => {
-      const body = req.body as z.infer<typeof CreateTaskBody>;
-      const task = await createTask({
-        title: body.title,
-        description: body.description,
-        dueDate: body.dueDate,
-        status: body.status,
-      });
+app.post('/tasks', {
+  schema: { body: CreateTaskBody, response: { 201: TaskDTO } },
+}, async (req, reply) => {
+  const body = req.body as z.infer<typeof CreateTaskBody>;
+  const task = await createTask({
+    title: body.title,
+    description: body.description,
+    dueDate: body.dueDate,
+    status: body.status,
+  });
 
-      // Publish "created"
-      await app.mq.publish('task.action', {
-        taskId: task.id,
-        action: 'created' as const,
-        timestamp: new Date().toISOString(),
-      });
+  // защита на случай отсутствия mq
+  if (!app.mq) {
+    req.log.warn('RabbitMQ is not initialized; skipping publish');
+  } else {
+    await app.mq.publish('task.action', {
+      taskId: task.id,
+      action: 'created' as const,
+      timestamp: new Date().toISOString(),
+    });
+  }
 
-      reply.code(201);
-      return task;
-    }
-  );
+  reply.code(201);
+  return task;
+});
 
-  app.patch(
-    '/tasks/:id',
-    {
-      schema: {
-        params: z.object({ id: ObjectIdLike }),
-        body: UpdateTaskBody,
-        response: { 200: TaskDTO },
-      },
-    },
-    async (req, reply) => {
-      const { id } = req.params as { id: string };
-      const task = await updateTask(id, req.body as any);
-      if (!task) return reply.notFound('Task not found');
+app.patch('/tasks/:id', {
+  schema: {
+    params: z.object({ id: ObjectIdLike }),
+    body: UpdateTaskBody,
+    response: { 200: TaskDTO },
+  },
+}, async (req, reply) => {
+  const { id } = req.params as { id: string };
+  const task = await updateTask(id, req.body as any);
+  if (!task) return reply.notFound('Task not found');
 
-      // Publish "updated"
-      await app.mq.publish('task.action', {
-        taskId: task.id,
-        action: 'updated' as const,
-        timestamp: new Date().toISOString(),
-      });
+  if (!app.mq) {
+    req.log.warn('RabbitMQ is not initialized; skipping publish');
+  } else {
+    await app.mq.publish('task.action', {
+      taskId: task.id,
+      action: 'updated' as const,
+      timestamp: new Date().toISOString(),
+    });
+  }
 
-      return task;
-    }
-  );
+  return task;
+});
 }
