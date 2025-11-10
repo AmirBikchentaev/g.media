@@ -2,7 +2,6 @@ import mongoose from 'mongoose';
 import { TaskModel, TaskStatus } from '../models/task.model.js';
 
 export function toClient(task: any) {
-  // нормализуем под строки ISO и id как string
   return {
     id: String(task._id),
     title: task.title,

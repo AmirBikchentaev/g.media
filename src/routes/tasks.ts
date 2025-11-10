@@ -3,6 +3,7 @@ import { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { TaskStatus } from '../models/task.model.js';
 import { getTaskById, listTasks, createTask, updateTask } from '../repositories/task.repo.js';
+import { publishTaskEvent } from '../mq/publisher.js';
 
 const StatusEnum = z.enum(['pending', 'in_progress', 'done']);
 const ObjectIdLike = z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid ObjectId');
@@ -62,7 +63,6 @@ export default async function tasksRoute(app: FastifyInstance) {
       return listTasks(status);
     }
   );
-
 app.post('/tasks', {
   schema: { body: CreateTaskBody, response: { 201: TaskDTO } },
 }, async (req, reply) => {
@@ -74,16 +74,7 @@ app.post('/tasks', {
     status: body.status,
   });
 
-  // защита на случай отсутствия mq
-  if (!app.mq) {
-    req.log.warn('RabbitMQ is not initialized; skipping publish');
-  } else {
-    await app.mq.publish('task.action', {
-      taskId: task.id,
-      action: 'created' as const,
-      timestamp: new Date().toISOString(),
-    });
-  }
+  await publishTaskEvent({ taskId: task.id, action: 'created' });
 
   reply.code(201);
   return task;
@@ -100,15 +91,7 @@ app.patch('/tasks/:id', {
   const task = await updateTask(id, req.body as any);
   if (!task) return reply.notFound('Task not found');
 
-  if (!app.mq) {
-    req.log.warn('RabbitMQ is not initialized; skipping publish');
-  } else {
-    await app.mq.publish('task.action', {
-      taskId: task.id,
-      action: 'updated' as const,
-      timestamp: new Date().toISOString(),
-    });
-  }
+  await publishTaskEvent({ taskId: task.id, action: 'updated' });
 
   return task;
 });

@@ -9,6 +9,7 @@ import {
 import { typeDefs } from './graphql/schema.js';
 import { resolvers } from './graphql/resolvers.js';
 import tasksRoute from './routes/tasks.js';
+import healthRoute from './routes/health.js';
 import { rabbitPlugin } from './plugins/rabbit.js';
 
 import Ajv from 'ajv';
@@ -18,9 +19,10 @@ import fjs from 'fast-json-stringify';
 export function buildServer() {
   const app = Fastify({ logger: true }).withTypeProvider<ZodTypeProvider>();
 
-  // mixed compilers
+  // Смешанные компиляторы: Zod ИЛИ JSON Schema
   const ajv = new Ajv({ coerceTypes: true, removeAdditional: 'all' });
   addFormats(ajv);
+
   app.setValidatorCompiler((req) => {
     const schema: any = req.schema;
     // @ts-ignore
@@ -28,6 +30,7 @@ export function buildServer() {
     // @ts-ignore
     return isZod ? zodValidator(req) : ajv.compile(schema);
   });
+
   app.setSerializerCompiler((req) => {
     const schema: any = req.schema;
     // @ts-ignore
@@ -38,7 +41,6 @@ export function buildServer() {
 
   app.register(sensible);
 
-  // 1) СНАЧАЛА — RabbitMQ (и лучше с await в index.ts через app.ready())
   app.register(rabbitPlugin, {
     url: process.env.RABBITMQ_URL || 'amqp://guest:guest@rabbit:5672',
     exchangeName: process.env.RABBITMQ_EXCHANGE || 'task.exchange',
@@ -46,18 +48,23 @@ export function buildServer() {
     routingKey: process.env.RABBITMQ_RK || 'task.action',
   });
 
-  // 2) GraphQL — контекст забирает app.mq (после регистрации плагина)
   //@ts-ignore
   app.register(mercurius, {
     schema: typeDefs,
     resolvers,
     graphiql: true,
     path: '/graphql',
-    context: () => ({ mq: app.mq }), // будет доступно после инициализации плагина
+    context: () => ({ mq: (app as any).mq }),
   });
 
-  // 3) REST
+  app.register(healthRoute, { prefix: '/api' });
   app.register(tasksRoute, { prefix: '/api' });
+
+
+  app.addHook('onReady', async () => {
+    // @ts-ignore
+    app.log.info({ hasMq: Boolean(app.mq) }, 'onReady');
+  });
 
   return app;
 }

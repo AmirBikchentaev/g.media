@@ -1,4 +1,3 @@
-// src/plugins/rabbit.ts
 import { FastifyPluginAsync } from 'fastify';
 import amqp from 'amqplib';
 import type { Options } from 'amqplib';
@@ -10,7 +9,9 @@ interface MQ {
 }
 
 declare module 'fastify' {
-  interface FastifyInstance { mq: MQ }
+  interface FastifyInstance {
+    mq: MQ;
+  }
 }
 
 type RabbitPluginOpts = {
@@ -24,12 +25,11 @@ async function connectAmqp(url: string, retries = 20, delayMs = 1500): Promise<a
   let lastErr: any;
   for (let i = 1; i <= retries; i++) {
     try {
-      //@ts-ignore
+      // @ts-ignore
       return await amqp.connect(url);
     } catch (e: any) {
       lastErr = e;
-      // ECONNREFUSED / ETIMEDOUT — ждём и пробуем снова
-      await new Promise(r => setTimeout(r, delayMs));
+      await new Promise((r) => setTimeout(r, delayMs));
     }
   }
   throw lastErr;
@@ -43,7 +43,7 @@ export const rabbitPlugin: FastifyPluginAsync<RabbitPluginOpts> = async (app, op
 
   app.log.info({ url }, '[rabbit] connecting...');
   const conn = await connectAmqp(url);
-  //@ts-ignore
+  // @ts-ignore
   const ch = await conn.createChannel();
 
   await ch.assertExchange(exchange, 'direct', { durable: true });
@@ -52,7 +52,11 @@ export const rabbitPlugin: FastifyPluginAsync<RabbitPluginOpts> = async (app, op
 
   async function publish(rk: string, payload: unknown, pubOpts?: Options.Publish) {
     const buf = Buffer.from(JSON.stringify(payload));
-    ch.publish(exchange, rk, buf, { contentType: 'application/json', persistent: true, ...pubOpts });
+    ch.publish(exchange, rk, buf, {
+      contentType: 'application/json',
+      persistent: true,
+      ...pubOpts,
+    });
     app.log.info({ rk }, '[rabbit] published');
   }
 
