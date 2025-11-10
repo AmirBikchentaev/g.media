@@ -23,6 +23,15 @@ It implements a **modular, type-safe Task Management microservice** that exposes
 ```bash
 npm install
 docker compose up --build
+
+```
+---
+## 📡 Important links
+
+```
+mongo  http://localhost:8081/ - logged as root;
+rabbitmq  http://localhost:15672/ - guest:guest,
+
 ```
 
 
